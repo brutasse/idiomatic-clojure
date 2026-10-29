@@ -9,13 +9,13 @@ ceremony.
 Clone this repository:
 
 ```
-git clone git@github.com:brutasse/writing-idiomatic-clojure.git
+git clone git@github.com:brutasse/idiomatic-clojure.git
 ```
 
 Symlink the clone directory into `~/.agents/skills/`:
 
 ```
-cd writing-idiomatic-clojure
+cd idiomatic-clojure
 ln -s "$PWD" ~/.agents/skills/writing-idiomatic-clojure
 ```
 
