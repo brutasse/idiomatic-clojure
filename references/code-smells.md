@@ -14,8 +14,9 @@ All examples run on Clojure 1.12.
 | `(for [x xs] (f x))` | `(map f xs)` | `for` is a comprehension; a single binding + map is `map` |
 | `(map #(f %) xs)` | `(map f xs)` | trivial lambda adds noise |
 | `(filter #(not (p %)) xs)` | `(remove p xs)` | `remove` *is* negated filter |
-| `(filter #(p (:k %)) xs)` | `(filter (comp p :k) xs)` | compose, don't rebind `%` |
+| `(filter (comp p :k) xs)` | `(filter #(p (:k %)) xs)` | a fn literal reads in execution order; `comp` applies right-to-left and inverts it — `comp` is for named transducer pipelines, not call sites |
 | `(doseq [x xs] (doseq [y ys] ...))` | `(doseq [x xs y ys] ...)` | bindings nest for free |
+| `(remove #(= % 1) xs)` — membership test spelled out | `(remove #{1} xs)` — a set *is* a predicate | O(1) lookup; the set reads as the whitelist |
 | `(doseq [x xs] (swap! acc conj (f x)))` | `(into [] (map f) xs)` or `mapv` | accumulator-in-atom is a `reduce` wearing a costume |
 
 ## Emptiness and truth
@@ -28,6 +29,9 @@ All examples run on Clojure 1.12.
 | `(if x true false)` | `(boolean x)` — `x` is already the answer | |
 | `(= 0 x)` / `(> x 0)` / `(< x 0)` | `(zero? x)` / `(pos? x)` / `(neg? x)` | intent (note: `zero?` throws on non-numbers) |
 | `(or x default)` to default nil-ish values | `(if (nil? x) default x)` | `or` also swallows `false` and `0` |
+| `(not (= a b))` | `(not= a b)` | the dedicated form |
+| `(and (> x 5) (< x 10))` | `(< 5 x 10)` | comparison fns are variadic |
+| `(+ x 1)` / `(- x 1)` | `(inc x)` / `(dec x)` | intent |
 
 ## Sequence navigation
 
@@ -58,7 +62,7 @@ indistinguishable to `get`. Don't store `nil`s; prune at the boundary.
 
 | Smell | Fix |
 |---|---|
-| map with `nil` values flowing into `merge`/JSON | `(into {} (remove (comp nil? val)) m)` — or `(clojure.set/remove-vals nil? m)`; **`remove-vals` is in `clojure.set`, not `clojure.core`** |
+| map with `nil` values flowing into `merge`/JSON | `(into {} (remove #(nil? (val %))) m)` — or `(clojure.set/remove-vals nil? m)`; **`remove-vals` is in `clojure.set`, not `clojure.core`** |
 | manual key-by-key nil-merge | `(merge m1 (prune-nils m2))` — two readable transforms |
 | `{:a (:a m1) :b (:b m2)}` manual key picking | `(merge (select-keys m1 [:a]) (select-keys m2 [:b]))` |
 | `(let [m (assoc ...)] (if p (assoc m k v) m) ...)` conditional build-up | `cond->` |
@@ -84,6 +88,8 @@ indistinguishable to `get`. Don't store `nil`s; prune at the boundary.
 | Smell | Fix |
 |---|---|
 | `(when t (do a b))`, `(let [x 1] (do a b))` — explicit `do` where body is already implicit | drop the `do` (`when`, `let`, `fn`, `try`, ... take bodies) |
+| `(if p (do a b))` / `(if (not p) (do a b))` | `(when p …)` / `(when-not p …)` | a single-branch `if` is a `when` in disguise |
+| `(let [x (f)] (if x …))` / `(let [x (f)] (when x …))` | `(if-let [x (f)] …)` / `(when-let [x (f)] …)` | the test *is* the value |
 | `(let [x (f x) x (g x)] ...)` shadowing bindings | `(-> x f g)` |
 | nested `let` forms | one `let` with more bindings |
 | `(-> x f)` | `(f x)` — trivial threading is noise |
@@ -101,7 +107,7 @@ indistinguishable to `get`. Don't store `nil`s; prune at the boundary.
 | returning `[ok-count err-count]`, reading `(first res)` | return `{:ok n :err m}` | indices with business meaning belong as keys |
 | `(first (filter p xs))` when absence is an error | `(some p xs)`, or throw on missing | `(first ...)` conflates "absent" and "falsy" |
 | a function over a collection that must run once, called with `[x]` | take the single thing | see plural wrappers |
-| pair of defns differing only in an embedded operation (`double-sum` / `double-product`) | one function taking the operation as argument — a private helper plus a public pair built by `partial` | copy-pasted pairs drift; op-as-argument keeps the API and kills the duplication. Explicit reduce identities are free anyway (`(reduce + [])` → `0`, `(reduce * [])` → `1`) |
+| pair of defns differing only in an embedded operation (`double-sum` / `double-product`) | one function taking the operation as argument — a private helper plus thin one-line public wrappers | copy-pasted pairs drift; op-as-argument keeps the API and kills the duplication. Explicit reduce identities are free anyway (`(reduce + [])` → `0`, `(reduce * [])` → `1`) |
 | multi-clause anonymous predicate inline in `filter` | name it (`defn streamable?`) or compose the parts with `every-pred` | a predicate is domain policy — named it is testable, reusable, greppable |
 | `#(...)` literal with several `%n` or nested sub-forms | `fn` with destructured args, or a named singular helper | literals are for one-liners; past a single `%` the reader has to expand it twice |
 
@@ -116,3 +122,19 @@ indistinguishable to `get`. Don't store `nil`s; prune at the boundary.
 | `sorted-set-by` comparator that compares only part of the value (`(compare (:ts a) (:ts b))`) | comparator over a key vector incl. tiebreaker: `(compare [(:ts a) (:id a)] [(:ts b) (:id b)])` | a sorted set dedupes comparator-equal entries — same-`ts` events vanish silently |
 | nested `if (not= 0 (compare …))` ladder for multi-field sort | compare key vectors: `(compare [(:salary y) (:name x)] [(:salary x) (:name y)])` | vectors compare lexicographically; swapping x/y per field flips that field's direction |
 | Java collection as a map key or set member (`(ArrayList. coords)` as key) | `(vec k)` / `(set k)` at the interop boundary, on **both** store and lookup sides | `=` is true across types but `hash` is not (vector `hasheq` is Murmur, Java collections use `hashCode`) → hash-map/hash-set misses. Array-maps (≤ 8 entries) scan by equals and *work*, hiding this until the map grows |
+
+## Silent bugs and compile traps
+
+Rows that compile (or don't) in ways that mislead. All verified on 1.12.
+
+| Don't | Why it misleads |
+|---|---|
+| docstring after the arg vector: `(defn f [x] "doc" (inc x))` | silently becomes the first body form — `:doc` is nil, and a one-form body returns the string instead of computing. Put it after the name |
+| `(defrecord Foo "doc" [a b])` / `(deftype Foo "doc" [a b])` | neither takes a docstring — the macro is `[name fields & opts+specs]`, so the string binds to `fields` and throws "No fields vector given.". Document the type in a `;;` comment above |
+| `:else` as a `case` default | `:else` is a *test value*, not a default — no match throws "No matching clause". The default is a bare final expression: `(case x 1 :one 2 :two :dunno)`. `:else` belongs to `cond` |
+| `(swap! log conj …)` inside `dosync` | runs once per **attempt**, not once per commit — a retried transaction appends duplicate entries while the ref change applies once. Do it after the transaction |
+| `(m :k)` where `m` may be nil | keyword-as-function derefs its argument: `(nil :k)` NPEs, `(:k m)` is nil |
+| `#{…}` / `{:k …}` literal with duplicate entries | the *reader* throws `IllegalArgumentException` at read time — build runtime sets with `set`/`hash-set` |
+| `ref-deref` | does not exist (a hallucination) — in-transaction reads are plain `deref`/`@` |
+| `thrown?` / `thrown-with-msg?` outside `is`, or via `:refer [thrown?]` | they are `assert-expr` dispatches, not vars — usable only inside `is`: `(is (thrown? ArithmeticException (/ 1 0)))` |
+| `catch ExceptionInfo` without `(:import clojure.lang.ExceptionInfo)` | compile error: the class name doesn't resolve |

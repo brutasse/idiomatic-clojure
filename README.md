@@ -25,6 +25,7 @@ ln -s "$PWD" ~/.agents/skills/writing-idiomatic-clojure
 |---|---|
 | `SKILL.md` | The skill: generation recipe, house resolutions, Java-in-Clojure red flags. Loaded on Clojure tasks. |
 | `references/code-smells.md` | Don't→do catalog, scanned row-by-row when reviewing or refactoring for idiom. |
+| `references/conventions.md` | Names, namespaces/aliases, docstrings, records, interop, exceptions, STM, macros, comments, testing, library organization. Read for whole-namespace generation or review. Whitespace/layout rules are out of scope by design (cljfmt's job). |
 | `references/threading.md` | Choosing and checking threading macros: selection by argument position, the position-is-meaning trap, nil-chain flattening. Read before threading non-trivially or reviewing threaded code. |
 | `references/patterns-in-clojure.md` | GoF patterns mapped to their Clojure core constructs, incl. the N+M rule (two multimethods over a canonical intermediate representation, never N×M pairs). |
 | `scenarios/` | Test fixtures, scoring rubrics, and the RED/GREEN baseline + skill-run transcripts. Not part of the skill. |
@@ -70,6 +71,13 @@ The substance is distilled and adapted from:
 - Ben Sless — [Idiomatic Clojure: Code Smells](https://bsless.github.io/code-smells/)
   and [Idiomatic Clojure: Mixing Side Effects and Iteration](https://bsless.github.io/side-effects/)
   (basis of `references/code-smells.md` and the strictness rules in `SKILL.md`)
+- [The Clojure Style Guide](https://guide.clojure.style/)
+  (basis of `references/conventions.md`, the composition-at-call-sites
+  house resolution in `SKILL.md`, and the silent-bug/idiom rows in
+  `references/code-smells.md`. Its whitespace and layout rules — line
+  length, indentation, alignment, line endings, commas, blank lines,
+  trailing parens, docstring indentation — were deliberately **not**
+  adopted: those belong to the auto-formatter, not the skill)
 - [life0fun/clojure-idiom](https://github.com/life0fun/clojure-idiom) —
   surveyed as an examples source
 - [josephinoo/clojure-idiomatic](https://github.com/josephinoo/clojure-idiomatic) —

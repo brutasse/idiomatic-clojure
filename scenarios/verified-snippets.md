@@ -70,6 +70,29 @@ appear here.
 | vec fix at scale | `(vec c)` store-side, 13 pairs, vector lookup → hit | PASS |
 | NaN? on nil | NPE — original `=`-filters tolerate nil, NaN? filters don't | PASS |
 | subtraction overflow | `#(- %1 %2)` with Long/MAX+MIN → ArithmeticException (vs silent truncation in int-range) | PASS |
+| dup-set literal | `(read-string "#{1 1}")` / `"{:a 1 :a 2}"` → IllegalArgumentException at the reader | PASS |
+| case default | `case` has NO `:else`: `(case :x 1 :one :else :dunno)` throws "No matching clause" (`:else` is a test value); bare final expr is the default: `(case :x 1 :one 2 :two :dunno)` → `:dunno`; no default + no match → IllegalArgumentException | PASS |
+| docstring placement | `(defn f [x] "doc" (inc x))` → `(:doc (meta))` nil; string silently becomes first body form; one-form body returns the string instead of computing | PASS |
+| io-in-tx | `(dosync (io! ...))` → IllegalStateException; `io!` outside → ok | PASS |
+| stm-retry | deterministic retry (T1 pins read → main commits → T1 writes) → atom side effect inside `dosync` runs once per ATTEMPT (`[:attempt :attempt]`) while ref change applies once (r=6). 5/5 runs identical | PASS |
+| stm-block | thread parked inside tx holding a write to a ref blocks every other tx touching it — main's conflicting commit deadlocks (the "don't block inside a tx" rule, mechanistically) | PASS |
+| ensure-ref | `ensure` takes a **Ref** (touch semantics, returns in-transaction value) — `(dosync (ensure rr) (alter rr + 1))` ok; a boolean CCEs | PASS |
+| ref-deref absent | `ref-deref` does NOT exist in 1.12.5 (find-var nil, absent from sources) — in-tx reads are plain `deref`/`@` | NOTED |
+| thrown?-dispatch | `clojure.test/thrown?` / `thrown-with-msg?` are NOT public vars — `assert-expr` dispatches; usable only as `(is (thrown? Type form))`; `:refer [thrown?]` / `t/thrown?` fail to compile | NOTED |
+| test-forms | `deftest`/`testing`/`are`/`(is (thrown? ...))`/`(is (thrown-with-msg? ...))` functional run: 1 test, 5 assertions, 0 failures | PASS |
+| ex-info import | `(catch ExceptionInfo e …)` needs `(import clojure.lang.ExceptionInfo)` in the ns, else compile error | PASS |
+| record ctors | `->Pt` / `map->Pt` / `Pt.` all construct; custom ctor `make-customer` with `{:pre [...]}` throws AssertionError | PASS |
+| priv meta | `^:private` lands `:private true` in var meta — plus `:line/:column/:file/:name/:ns`, so whole-map equality fails; `defn-` → `:private true`; `@#'ns/var` works | PASS |
+| api meta | `:added` / `:deprecated` / `:superseded-by` string values land in var meta (e.g. `{:deprecated "0.2", :superseded-by "loud?"}`) | PASS |
+| math-pow | `(clojure.math/pow 2 5)` → 32.0 (with `[clojure.math :as math]`) | PASS |
+| parseInt catch | `(catch NumberFormatException)` around `Integer/parseInt` works; `parseInt "99999999999"` throws NFE | PASS |
+| prune-flip | `(into {} (remove #(nil? (val %))) {:a 1 :b nil :c 3})` → `{:a 1 :c 3}` (the fn-literal form of the old `comp nil? val` row) | PASS |
+| alter-var-root | `(alter-var-root #'thing (fn [_] 2))` rebinds the var | PASS |
+| see-also meta | `:see-also` string vector lands in var meta | PASS |
+| earmuffs | `^:dynamic` + `binding [*d* …]` works | PASS |
+| defrecord docstring | `(defrecord Foo \"doc\" [a b])` → AssertionError \"No fields vector given.\" — `defrecord`'s macro is `[name fields & opts+specs]`, **no docstring slot** (unlike `defn`); the string is bound to `fields`. Stock 1.12.5 behavior (source `core_deftype.clj` + reproduced on nREPL) | NOTED |
+| test-no-main | `clojure.test` has NO `main` var in 1.12.5 (`ns-publics` + source) — `:main-opts [\"-m\" \"clojure.test\" …]` NPEs in `clojure.main/main`; run tests via `:exec-fn` or `clj -M -e '(test-ns …)'` | NOTED |
+| test-ns rerun | scratch/bands (L rep1 artifact) re-run independently: `{:test 1, :pass 3, :fail 0, :error 0}` | PASS |
 
 Harness bugs found during testing (expected-value mistakes, fixed above):
 comparing `keys` to a set; `true?` on truthy seq; wrong expected `into` result;

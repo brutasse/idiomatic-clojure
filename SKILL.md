@@ -23,13 +23,18 @@ description: Use when writing, reviewing, or refactoring Clojure or ClojureScrip
 4. **Effects at the edges, eager, named with `!`.** Keep results → `mapv` or
    `(into [] xf xs)`; discard them → `run!` or `doseq`. Functions that *do*
    return eagerly collected results; never `doall` to force effects.
+5. **Conventions:** names, namespaces/aliases, docstrings, records,
+   exceptions, STM, macros, comments, tests, library shape —
+   `references/conventions.md`.
 
 ## Review requests
 
 When reviewing or refactoring for idiom, read
-`references/code-smells.md` and scan every row against the code. For threaded
-code, also hand-expand every `->`/`->>`/`cond->` step —
-`references/threading.md` lists the traps.
+`references/code-smells.md` and scan every row against the code — including
+the silent-bug traps. For threaded code, also hand-expand every
+`->`/`->>`/`cond->` step — `references/threading.md` lists the traps. For
+whole-namespace reviews (naming, docstrings, STM, exceptions, tests,
+library shape), also read `references/conventions.md`.
 
 ## House resolutions (don't relitigate)
 
@@ -42,6 +47,12 @@ code, also hand-expand every `->`/`->>`/`cond->` step —
 - **Summing:** `(reduce + 0 xs)`. `transduce` only where a transducer pipeline
   already exists. Never `(apply + xs)` on a large or lazy seq (varargs +
   stack).
+- **Composition at call sites:** the fn literal beats `comp`, `partial`,
+  and `complement` — `(map #(str/trim %))` reads in execution order, while
+  `comp` applies right-to-left and inverts it. `comp` is for named
+  transducer pipelines (`(def odd-inc (comp (filter odd?) (map inc)))`);
+  `partial` only when the partial application itself is the value you
+  store or pass (see `references/patterns-in-clojure.md`, Command).
 - **Emptiness:** `(seq x)`, never `(not (empty? x))`. Negated filtering:
   `remove`, never `(filter #(not (p %)) ...)`.
 - **Descending sort:** `(sort-by :k > xs)` only when ties are interchangeable.
